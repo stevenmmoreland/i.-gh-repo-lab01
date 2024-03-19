@@ -1,0 +1,53 @@
+apiVersion: ai.sap.com/v1alpha1
+kind: ServingTemplate
+metadata:
+  name: serving-workflow-lab01
+  annotations:
+    scenarios.ai.sap.com/description: "Serving Model Scenario Description"
+    scenarios.ai.sap.com/name: "Serving Scenario lab01"
+    executables.ai.sap.com/description: "Serving Executable Description"
+    executables.ai.sap.com/name: "serving"
+    artifacts.ai.sap.com/servemodel.kind: "model"
+    artifacts.ai.sap.com/servemodel.description: "model artifact description" 
+  labels:
+    scenarios.ai.sap.com/id: "scenario-id"
+    executables.ai.sap.com/id: "excutable-id"
+    ai.sap.com/version: "1.0"
+spec:
+  inputs:
+    artifacts:
+      - name: servemodel
+    parameters: 
+      - name: greetmessage # placeholder name
+        type: string # required for every parameters
+        description: description of the parameter
+  template:
+    apiVersion: "serving.kserve.io/v1beta1"
+    metadata:
+      annotations: |
+        autoscaling.knative.dev/metric: concurrency
+        autoscaling.knative.dev/target: 1
+        autoscaling.knative.dev/targetBurstCapacity: 0
+      labels: |
+        ai.sap.com/resourcePlan: infer.s # computing power  
+    spec: |
+      predictor:
+        imagePullSecrets:
+        - name: docker-secret-lab01
+        minReplicas: 1
+        maxReplicas: 5
+        containers:
+        - name: kserve-container
+          image: docker.io/reclaimh2b/product-serving:1.0
+          ports:
+            - containerPort: 9001
+              protocol: TCP
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              set -e && echo "Starting" && gunicorn --chdir /app/src serving:app -b 0.0.0.0:9001 # filename `main` flask variable `app`              
+          env:
+            - name: STORAGE_URI
+              value: "{{inputs.artifacts.servemodel}}"
+            - name: greetingmessage # different name to avoid confusion
+              value: "{{inputs.parameters.greetmessage}}"  
